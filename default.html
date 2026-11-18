@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" vocab="https://schema.org/" typeof="TechArticle" class="article">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="/text-readability/readmode.css" />
+<title>Cashu</title>
+<meta name="author" content="Charles Iliya Krempeaux" />
+<meta name="category" content="bitcoin" />
+<meta name="category" content="blind signatures" />
+<meta name="category" content="cashu" />
+<meta name="category" content="chaumian ecash" />
+<meta name="category" content="ecash" />
+<meta name="category" content="lightning network" />
+<meta name="category" content="nostr" />
+</head>
+<body>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+	<ol>
+		<li><a href="/">Home</a></li>
+		<li><a href="./" aria-current="page">Cashu</a></li>
+	</ol>
+</nav>
+
+<main>
+<article>
+	<header>
+		<hgroup>
+			<h1 property="headline">Cashu</h1>
+			<p>
+				private digital cash for Bitcoin, built on blind signatures
+			</p>
+		</hgroup>
+		<p>
+			by <a href="https://reiver.link/">Charles Iliya Krempeaux</a>
+		</p>
+	</header>
+	<p>
+		What is <strong>Cashu</strong>‽
+	</p>
+	<p>
+		The most succinct way I can think of to explain <em>what <strong>Cashu</strong> is</em> is:
+	</p>
+	<p>
+		🠶 digital cash that the issuer cannot trace
+	</p>
+	<p>
+		A bit more precisely
+		—
+		<strong>Cashu</strong> is an open protocol for <strong>Chaumian ecash</strong> on top of <strong>Bitcoin</strong>.
+		A server, called a <strong>mint</strong>, takes in bitcoin (usually over the <strong>Lightning Network</strong>) and hands out <strong>ecash</strong> <strong>tokens</strong>.
+		Those <strong>tokens</strong> can be passed from person to person, like paper cash.
+		And, when someone eventually brings a <strong>token</strong> back to the <strong>mint</strong>, the <strong>mint</strong> can tell that the <strong>token</strong> is real
+		—
+		but it <u>cannot tell who it originally gave that <strong>token</strong> to</u>.
+	</p>
+	<p>
+		That last part is the magic.
+		And, it comes from a cryptographic trick called a <strong>blind signature</strong>.
+	</p>
+	<p>
+		But that is a lot of jargon.
+		So, before getting technical, let's build an intuition for <em>what <strong>Cashu</strong> is</em> without any of it.
+	</p>
+	<section>
+		<h1>Explained For A 12 Year Old</h1>
+		<p>
+			Imagine there is a school fair.
+			At the school fair, you <strong>cannot</strong> pay for things with regular money.
+			Instead, you go to the <strong>ticket booth</strong>, give them some regular money, and they give you <strong>fair tickets</strong>.
+			Then you use those <strong>fair tickets</strong> to buy popcorn, play games, and so on.
+		</p>
+		<p>
+			(In <strong>Cashu</strong>, the <strong>ticket booth</strong> is called the <strong>mint</strong>.
+			The <strong>fair tickets</strong> are called <strong>ecash</strong>.
+			And, the regular money is <strong>bitcoin</strong>.)
+		</p>
+		<p>
+			Here is the problem.
+			If the <strong>ticket booth</strong> wrote down a serial number for every ticket, and wrote down <em>who</em> they gave each ticket to
+			—
+			then later, when the popcorn stand turned the tickets back in, the <strong>ticket booth</strong> would know <em>exactly</em> who bought popcorn, and when.
+			Every ticket would be a little spy.
+		</p>
+		<p>
+			So, this fair does something clever.
+		</p>
+		<section>
+			<h1>The Secret Number</h1>
+			<p>
+				When you want a ticket, <em>you</em> (not the <strong>ticket booth</strong>) make up a long secret number, and write it on a blank slip of paper.
+				Something like <code>83920174650283746…</code>
+				—
+				so long that no one else will ever pick the same one.
+			</p>
+		</section>
+		<section>
+			<h1>The Magic Envelope</h1>
+			<p>
+				Next, you put your slip of paper inside a special envelope.
+				The envelope is lined with <strong>carbon paper</strong>.
+				So, if anyone stamps the <em>outside</em> of the envelope, the stamp also comes through onto the slip of paper <em>inside</em>.
+			</p>
+			<p>
+				You hand the sealed envelope, plus your regular money, to the <strong>ticket booth</strong>.
+				The <strong>ticket booth</strong> stamps the outside of the envelope with its special stamp (one that no one else has), and hands it back.
+				The <strong>ticket booth</strong> never opens the envelope.
+				So, it never sees your secret number.
+			</p>
+			<p>
+				You walk away, open the envelope, and take out your slip.
+				Now your slip has <em>your</em> secret number on it, <em>and</em> the <strong>ticket booth</strong>'s official stamp.
+				That stamped slip is your ticket.
+			</p>
+			<figure>
+				<pre>
+   YOU                                           TICKET BOOTH
+
+ ┌────────┐
+ │ 839201 │  write secret number
+ └────────┘
+     ↓
+ ┌────────┐
+ │ ██████ │  seal it in a carbon-paper envelope
+ └────────┘
+     │
+     │   envelope + money   ─────────────→   stamps the outside
+     │                                       (cannot see inside)
+     │   stamped envelope   ←─────────────
+     ↓
+ ┌────────┐
+ │ 839201 │  open it — the stamp went through!
+ │   ⚜    │
+ └────────┘
+				</pre>
+				<figcaption>
+					Getting a ticket stamped without the <strong>ticket booth</strong> ever seeing it.
+				</figcaption>
+			</figure>
+		</section>
+		<section>
+			<h1>Spending The Ticket</h1>
+			<p>
+				You give your stamped slip to the popcorn stand.
+				The popcorn stand can give it to someone else, who can give it to someone else, and so on
+				—
+				just like cash.
+			</p>
+			<p>
+				Eventually someone takes the slip back to the <strong>ticket booth</strong> to trade it in.
+				The <strong>ticket booth</strong> looks at the stamp, and says, “yes, that's our stamp, this ticket is real.”
+			</p>
+			<p>
+				But the <strong>ticket booth</strong> has <strong>no idea</strong> who it first gave this ticket to.
+				It only ever saw <em>envelopes</em>.
+				It never saw the secret number until right now.
+				So, it can't connect this ticket to you.
+			</p>
+		</section>
+		<section>
+			<h1>No Copying</h1>
+			<p>
+				“Wait,” you might say, “can't I just photocopy my ticket and spend it twice?”
+			</p>
+			<p>
+				Nope.
+				The <strong>ticket booth</strong> keeps a list of every secret number that has been traded in.
+				If the same secret number shows up a second time, the <strong>ticket booth</strong> says, “sorry, that one has already been used.”
+			</p>
+			<p>
+				So, the <strong>ticket booth</strong> doesn't keep a list of <em>who has tickets</em>.
+				It only keeps a list of <em>secret numbers that are already used up</em>.
+			</p>
+		</section>
+		<section>
+			<h1>The Catch</h1>
+			<p>
+				There is one big catch.
+				You have to <strong>trust the ticket booth</strong>.
+			</p>
+			<p>
+				If the people running the <strong>ticket booth</strong> pack up and run away with all the regular money, your tickets become worthless pieces of paper.
+				So, you should only get tickets from a <strong>ticket booth</strong> you trust, and you probably shouldn't keep a huge pile of tickets for a long time.
+			</p>
+		</section>
+		<section>
+			<h1>That's Cashu</h1>
+			<p>
+				And that is basically <strong>Cashu</strong>.
+			</p>
+			<ul>
+				<li>The <strong>ticket booth</strong> is the <strong>mint</strong>.</li>
+				<li>The <strong>fair tickets</strong> are <strong>ecash</strong> <strong>tokens</strong>.</li>
+				<li>The regular money is <strong>bitcoin</strong>.</li>
+				<li>The secret number is the <strong>secret</strong>.</li>
+				<li>The carbon-paper envelope is <strong>blinding</strong>.</li>
+				<li>The stamp is the <strong>mint</strong>'s <strong>signature</strong> (made with the <strong>mint</strong>'s <strong>private-key</strong>).</li>
+				<li>Opening the envelope is <strong>unblinding</strong>.</li>
+				<li>The list of used-up secret numbers is the <strong>spent list</strong>.</li>
+			</ul>
+			<p>
+				The rest of this article is about how this actually works
+				—
+				with math (in place of envelopes), and computers (in place of a ticket booth).
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>Ecash</h1>
+		<p>
+			<strong>Cashu</strong> is a type of <strong>ecash</strong>.
+			More specifically, <strong>Chaumian ecash</strong>
+			—
+			named after cryptographer <strong>David Chaum</strong>, who invented it.
+		</p>
+		<p>
+			<strong>Chaumian ecash</strong> has the following characteristics:
+		</p>
+		<dl>
+			<dt>bearer asset</dt>
+			<dd>
+				<p>
+					Whoever holds the <strong>token</strong> owns it.
+					Like paper cash.
+					There are no accounts.
+					(And, like paper cash, if you lose it, it is gone.)
+				</p>
+			</dd>
+
+			<dt>issued by a mint</dt>
+			<dd>
+				<p>
+					A single party, the <strong>mint</strong>, issues the <strong>tokens</strong>, and redeems them.
+					The <strong>mint</strong> holds the backing money.
+				</p>
+			</dd>
+
+			<dt>unlinkable</dt>
+			<dd>
+				<p>
+					Because of <strong>blind signatures</strong>, the <strong>mint</strong> cannot link the <strong>token</strong> it issued to the <strong>token</strong> that is later redeemed.
+				</p>
+			</dd>
+
+			<dt>custodial</dt>
+			<dd>
+				<p>
+					You must trust the <strong>mint</strong> to honor the <strong>tokens</strong> it issued.
+				</p>
+			</dd>
+		</dl>
+		<p>
+			<strong>Cashu</strong> takes this 40+ year old idea, and backs the <strong>ecash</strong> with <strong>bitcoin</strong>.
+		</p>
+	</section>
+	<section>
+		<h1>Terminology</h1>
+		<p>
+			Some terms that come up a lot when talking about <strong>Cashu</strong>:
+		</p>
+		<dl>
+			<dt>mint</dt>
+			<dd>
+				<p>
+					The server that issues and redeems <strong>ecash</strong>.
+					It holds the bitcoin.
+					It has <strong>private-keys</strong> that it uses to sign (and later verify) <strong>ecash</strong>.
+					In the <strong>Cashu</strong> specifications, the <strong>mint</strong> is called <em>Bob</em>.
+				</p>
+			</dd>
+
+			<dt>wallet</dt>
+			<dd>
+				<p>
+					The software, on the user's device, that holds <strong>ecash</strong>, and talks to <strong>mints</strong>.
+					In the <strong>Cashu</strong> specifications, the sending user is called <em>Alice</em>, and the receiving user is called <em>Carol</em>.
+				</p>
+			</dd>
+
+			<dt>proof</dt>
+			<dd>
+				<p>
+					A single piece of <strong>ecash</strong>, of a single denomination.
+					A <strong>proof</strong> is basically a <strong>secret</strong> plus the <strong>mint</strong>'s (unblinded) <strong>signature</strong> on that <strong>secret</strong>.
+				</p>
+			</dd>
+
+			<dt>token</dt>
+			<dd>
+				<p>
+					A bundle of one or more <strong>proofs</strong>, plus the <strong>mint</strong>'s <abbr title="Uniform Resource Locator">URL</abbr>, serialized into a string (that starts with <code>cashuA</code> or <code>cashuB</code>) so it can be sent to someone.
+					(People often use “<strong>token</strong>” loosely to mean any amount of <strong>Cashu</strong> <strong>ecash</strong>.)
+				</p>
+			</dd>
+
+			<dt>minting</dt>
+			<dd>
+				<p>
+					Turning bitcoin into <strong>ecash</strong>.
+					The user pays the <strong>mint</strong> (e.g., pays a Lightning invoice), and gets <strong>ecash</strong>.
+				</p>
+			</dd>
+
+			<dt>melting</dt>
+			<dd>
+				<p>
+					Turning <strong>ecash</strong> back into bitcoin.
+					The user gives the <strong>mint</strong> <strong>ecash</strong>, and the <strong>mint</strong> pays out bitcoin (e.g., pays a Lightning invoice).
+				</p>
+			</dd>
+
+			<dt>swapping</dt>
+			<dd>
+				<p>
+					Trading <strong>ecash</strong> for new <strong>ecash</strong> at the same <strong>mint</strong>.
+					This is how you make change, and how a receiver makes sure the sender can't spend the <strong>ecash</strong> again.
+				</p>
+			</dd>
+
+			<dt>sat</dt>
+			<dd>
+				<p>
+					Short for <strong>satoshi</strong>.
+					The smallest unit of bitcoin.
+					1 bitcoin = 100,000,000 <strong>sats</strong>.
+					Most <strong>Cashu</strong> <strong>mints</strong> count in <strong>sats</strong>.
+				</p>
+			</dd>
+
+			<dt><abbr title="Notation, Usage, and Terminology">NUT</abbr></dt>
+			<dd>
+				<p>
+					The <strong>Cashu</strong> specifications are called <strong><abbr title="Notation, Usage, and Terminology">NUTs</abbr></strong>
+					—
+					short for “<strong>Notation, Usage, and Terminology</strong>”.
+					(The <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00 document itself says “Notation, <em>Utilization</em>, and Terminology”.)
+					They are numbered: <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-01, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-02, etc.
+				</p>
+			</dd>
+		</dl>
+		<p>
+			(The <strong>Cashu</strong> project is full of nut puns.
+			The specifications are <strong><abbr title="Notation, Usage, and Terminology">NUTs</abbr></strong>.
+			The reference implementation is <strong>Nutshell</strong>.
+			There is a yearly hackathon called <strong>NutNovember</strong>.
+			A Cashu wallet's key-derivation path even uses the number <code>129372</code>, which is the Unicode code point for the peanut emoji 🥜 (<code>U+1F95C</code>).)
+		</p>
+	</section>
+	<section>
+		<h1>History</h1>
+		<p>
+			The core idea behind <strong>Cashu</strong> is much older than <strong>Bitcoin</strong>.
+		</p>
+		<figure>
+			<pre>
+1982  David Chaum — “Blind Signatures for Untraceable Payments”
+  ↓
+1989  DigiCash founded (eCash)
+  ↓
+1996  David Wagner — “Chaumian ecash without RSA”
+  ↓
+1998  DigiCash bankrupt
+  ↓
+2009  Bitcoin
+  ↓
+2022  Ruben Somsen — “Blind Diffie-Hellman Key Exchange” (Wagner revisited)
+  ↓
+2022  Calle — Cashu
+			</pre>
+		</figure>
+		<section>
+			<h1>History: David Chaum</h1>
+			<p>
+				In 1982, <strong>David Chaum</strong> presented the paper “<cite>Blind Signatures for Untraceable Payments</cite>” at the <strong>Crypto 82</strong> conference.
+				(It was published in the conference proceedings in 1983, so you will see it cited as both 1982 and 1983.)
+			</p>
+			<p>
+				Chaum's paper introduced <strong>blind signatures</strong>
+				—
+				a way for a bank to sign something <em>without seeing what it is signing</em>.
+				That is what makes untraceable <strong>ecash</strong> possible.
+				Chaum's construction used <abbr title="Rivest–Shamir–Adleman">RSA</abbr>:
+			</p>
+			<figure>
+				<pre><code>
+blinding   (user):  m′ ≡ m · rᵉ  (mod N)
+signing    (bank):  s′ ≡ (m′)ᵈ   (mod N)
+unblinding (user):  s  ≡ s′ · r⁻¹ (mod N)
+				</code></pre>
+				<figcaption>
+					Chaum's <abbr title="Rivest–Shamir–Adleman">RSA</abbr> blind signature.
+					<code>(e, N)</code> is the bank's public-key, <code>d</code> is the bank's private-key, and <code>r</code> is a random blinding factor.
+				</figcaption>
+			</figure>
+		</section>
+		<section>
+			<h1>History: DigiCash</h1>
+			<p>
+				Chaum founded <strong>DigiCash</strong> in 1989 to commercialize his idea, under the name <strong>eCash</strong>.
+				In 1995, the <strong>Mark Twain Bank</strong> of St. Louis, Missouri became the first bank to offer <strong>eCash</strong>.
+				Banks in other countries licensed it too
+				—
+				including <strong>Deutsche Bank</strong>, <strong>Credit Suisse</strong>, and others.
+			</p>
+			<p>
+				But, it didn't catch on.
+				<strong>DigiCash</strong> filed for bankruptcy in 1998.
+				Calle (the creator of <strong>Cashu</strong>) summed it up as: DigiCash failed and “PayPal and Visa took over.”
+			</p>
+		</section>
+		<section>
+			<h1>History: David Wagner</h1>
+			<p>
+				<abbr title="Rivest–Shamir–Adleman">RSA</abbr> was patented at the time.
+				So, in 1996, <strong>David Wagner</strong> posted “<cite>Chaumian ecash without RSA</cite>” to the <strong>cypherpunks</strong> mailing-list.
+				Wagner's version replaced <abbr title="Rivest–Shamir–Adleman">RSA</abbr> with a <em>blinded</em> <strong>Diffie-Hellman key exchange</strong>.
+			</p>
+			<p>
+				Ben Laurie later implemented Wagner's scheme in a library called <strong>Lucre</strong>.
+				But, for the most part, the idea sat mostly forgotten for about 25 years.
+			</p>
+		</section>
+		<section>
+			<h1>History: Ruben Somsen</h1>
+			<p>
+				In February 2022, <strong>Ruben Somsen</strong> published a write-up called “<cite>Blind Diffie-Hellman Key Exchange (blind ecash)</cite>”, which restated Wagner's “seemingly long forgotten” scheme using <strong>elliptic-curve</strong> notation
+				—
+				the same kind of cryptography <strong>Bitcoin</strong> uses.
+			</p>
+			<p>
+				This is the scheme <strong>Cashu</strong> is built on.
+			</p>
+		</section>
+		<section>
+			<h1>History: Calle</h1>
+			<p>
+				<strong>Cashu</strong> was created by a pseudonymous developer who goes by <strong>Calle</strong> (<code>callebtc</code>), who previously worked on <strong>LNbits</strong>.
+				The first commit of <strong>Nutshell</strong> (the reference implementation of <strong>Cashu</strong>, written in Python) is dated 11 September 2022.
+				<strong>Cashu</strong> was publicly launched in October 2022.
+				The <strong><abbr title="Notation, Usage, and Terminology">NUTs</abbr></strong> specification repository was created in January 2023.
+			</p>
+			<p>
+				<strong>Cashu</strong> describes itself as having “no company, no token, no treasury”.
+				The specifications and reference implementation are open-source, under the <abbr title="Massachusetts Institute of Technology">MIT</abbr> license.
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>The Three Operations</h1>
+		<p>
+			At a high level, a <strong>Cashu</strong> <strong>wallet</strong> does 3 things with a <strong>mint</strong>:
+		</p>
+		<figure>
+			<pre>
+           ┌──────────────────────────────────────────────┐
+           │                     MINT                     │
+           └──────────────────────────────────────────────┘
+              ↑    │               ↑    │            ↑    │
+   Lightning  │    │ ecash   ecash │    │ ecash  ecash │    │ Lightning
+     payment  │    ↓               │    ↓              │    ↓ payment
+
+                 MINT                 SWAP                MELT
+           (bitcoin → ecash)    (ecash → ecash)    (ecash → bitcoin)
+			</pre>
+		</figure>
+		<dl>
+			<dt>mint</dt>
+			<dd>
+				<p>
+					Pay the <strong>mint</strong> bitcoin.
+					Get <strong>ecash</strong>.
+				</p>
+			</dd>
+
+			<dt>swap</dt>
+			<dd>
+				<p>
+					Give the <strong>mint</strong> <strong>ecash</strong>.
+					Get new <strong>ecash</strong> of the same total value (minus any fee).
+				</p>
+			</dd>
+
+			<dt>melt</dt>
+			<dd>
+				<p>
+					Give the <strong>mint</strong> <strong>ecash</strong>.
+					The <strong>mint</strong> pays bitcoin to wherever you tell it.
+				</p>
+			</dd>
+		</dl>
+		<p>
+			Notice what is <em>not</em> on the list
+			—
+			<strong>sending</strong>.
+			Sending <strong>ecash</strong> to another person does <strong>not</strong> involve the <strong>mint</strong> at all.
+			Alice just gives Carol the <strong>token</strong> (as text, a <abbr title="Quick Response">QR</abbr> code, <abbr title="Near-Field Communication">NFC</abbr>, a chat message, etc).
+			Carol then (usually immediately) does a <strong>swap</strong> with the <strong>mint</strong>, so that Alice can no longer spend it.
+		</p>
+	</section>
+	<section>
+		<h1>Blind Diffie-Hellman Key Exchange</h1>
+		<p>
+			The cryptography at the heart of <strong>Cashu</strong> is called <strong>Blind Diffie-Hellman Key Exchange</strong> (<strong><abbr title="Blind Diffie-Hellman Key Exchange">BDHKE</abbr></strong>).
+			It is specified in <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00.
+		</p>
+		<p>
+			It uses the <strong>secp256k1</strong> elliptic-curve
+			—
+			the same elliptic-curve that <strong>Bitcoin</strong> uses.
+		</p>
+		<p>
+			(If you are not familiar with elliptic-curve cryptography, here is what you need to know for this article:
+			Lower-case letters (<code>k</code>, <code>r</code>) are big secret numbers, called <strong>scalars</strong>.
+			Upper-case letters (<code>K</code>, <code>Y</code>, <code>C</code>) are <strong>points</strong> on the curve.
+			<code>G</code> is a fixed, well-known point that everyone agrees on.
+			You can add points together, and you can multiply a point by a number.
+			Going from <code>k</code> to <code>k×G</code> is easy, but going backwards
+			—
+			from <code>k×G</code> back to <code>k</code>
+			—
+			is practically impossible.)
+		</p>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: The Steps</h1>
+			<p>
+				The <strong>mint</strong> (Bob) has a <strong>private-key</strong> <code>k</code>.
+				It publishes its <strong>public-key</strong>:
+			</p>
+			<figure>
+				<pre><code>
+K = k×G
+				</code></pre>
+			</figure>
+			<p>
+				Then:
+			</p>
+			<figure>
+				<pre>
+       ALICE (wallet)                                    BOB (mint)
+                                                         knows k
+                                                         publishes K = k×G
+
+1. picks a random secret x
+   Y  = hash_to_curve(x)
+
+2. picks a random blinding factor r
+   B_ = Y + r×G
+                          ───────── B_ ─────────→
+                                                     3. C_ = k×B_
+                          ←──────── C_ ──────────
+
+4. C  = C_ − r×K
+      = k×(Y + r×G) − r×(k×G)
+      = k×Y + k×r×G − k×r×G
+      = k×Y
+
+5. the ecash is (x, C)
+
+                   … later, someone spends (x, C) …
+
+                          ──────── (x, C) ───────→
+                                                     6. check:
+                                                        k × hash_to_curve(x) == C
+                                                        and x not already spent
+				</pre>
+				<figcaption>
+					Blind Diffie-Hellman Key Exchange (<abbr title="Blind Diffie-Hellman Key Exchange">BDHKE</abbr>), as specified in <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00.
+				</figcaption>
+			</figure>
+			<p>
+				Mapping this back to the school fair:
+			</p>
+			<ul>
+				<li><code>x</code> is the secret number on the slip of paper.</li>
+				<li><code>Y = hash_to_curve(x)</code> is the slip of paper.</li>
+				<li><code>B_ = Y + r×G</code> is the slip of paper sealed inside the carbon-paper envelope. (<code>r</code> is the envelope.)</li>
+				<li><code>C_ = k×B_</code> is the ticket booth stamping the outside of the envelope.</li>
+				<li><code>C = C_ − r×K</code> is opening the envelope (and finding the stamp went through onto the slip).</li>
+				<li><code>(x, C)</code> is the stamped ticket.</li>
+			</ul>
+			<p>
+				(In the <strong>Cashu</strong> specifications, <code>B_</code> is called the <strong>blinded message</strong>, <code>C_</code> is called the <strong>blinded signature</strong> (or “promise”), and <code>C</code> is called the <strong>unblinded signature</strong>.
+				The underscore in <code>B_</code> and <code>C_</code> is a stand-in for a prime mark (<code>B′</code>, <code>C′</code>) that is easy to type.)
+			</p>
+		</section>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: Why Is It Called That</h1>
+			<p>
+				In a regular <strong>Diffie-Hellman key exchange</strong>, Alice and Bob each have a private-key (<code>a</code> and <code>k</code>), and they each publish a public-key (<code>a×G</code> and <code>k×G</code>).
+				They can then both compute the same shared secret, <code>k×a×G</code>, without ever sending it.
+			</p>
+			<p>
+				Steps 2 and 3 above have that same shape
+				—
+				Alice sends a point, and Bob multiplies it by his private-key <code>k</code>.
+				Except that Alice's point is <em>blinded</em> (by <code>r</code>).
+				And, unusually, Bob sends the “shared secret” (<code>C_</code>) back to Alice.
+				Hence <strong>Blind Diffie-Hellman Key Exchange</strong>.
+			</p>
+		</section>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: hash_to_curve</h1>
+			<p>
+				The secret <code>x</code> is just bytes.
+				(<abbr title="Notation, Usage, and Terminology">NUT</abbr>-00 recommends 32 random bytes, written as a 64-character hexadecimal string.)
+				To do elliptic-curve math with it, it needs to be turned into a point on the curve.
+				That is what <code>hash_to_curve</code> does:
+			</p>
+			<figure>
+				<pre><code>
+msg_hash = SHA256("Secp256k1_HashToCurve_Cashu_" || x)
+
+counter = 0
+loop:
+	Y = PublicKey(0x02 || SHA256(msg_hash || counter))   # counter is a uint32, little-endian
+	if Y is a valid point on the curve:
+		return Y
+	counter = counter + 1
+				</code></pre>
+				<figcaption>
+					<code>hash_to_curve</code>, from <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00.
+					(<code>||</code> means concatenation.)
+				</figcaption>
+			</figure>
+			<p>
+				Why bother with hashing‽
+				Why not let the user pick <code>Y</code> directly‽
+			</p>
+			<p>
+				Because, if a user could choose <code>Y</code> freely, they could choose <code>Y = y×G</code> for some <code>y</code> they know.
+				And then they could compute <code>k×Y = y×K</code> themselves
+				—
+				using only the <strong>mint</strong>'s <em>public</em>-key.
+				I.e., they could forge <strong>ecash</strong>.
+			</p>
+			<p>
+				By deriving <code>Y</code> from a hash, nobody knows the <code>y</code> for which <code>Y = y×G</code>.
+				So the only way to get a valid <code>C = k×Y</code> is from the <strong>mint</strong>.
+			</p>
+		</section>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: Why The Mint Cannot Link</h1>
+			<p>
+				When the <strong>mint</strong> signs, it sees only <code>B_ = Y + r×G</code>.
+				Because <code>r</code> is a random number, <code>B_</code> is just a random-looking point.
+				It reveals nothing about <code>Y</code> (or <code>x</code>).
+			</p>
+			<p>
+				When the <strong>ecash</strong> is later spent, the <strong>mint</strong> sees <code>x</code> and <code>C</code>.
+				But it has never seen those before.
+				And, without <code>r</code>, it cannot connect <code>(x, C)</code> to any of the <code>(B_, C_)</code> pairs it signed in the past.
+			</p>
+			<p>
+				So, <u>the <strong>mint</strong> cannot tell which minting created the <strong>ecash</strong> that is now being spent</u>.
+			</p>
+		</section>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: Not Quite A Signature</h1>
+			<p>
+				Notice that verifying <code>C</code> requires computing <code>k × hash_to_curve(x)</code>
+				—
+				which requires the <strong>mint</strong>'s <em>private</em>-key <code>k</code>.
+				So, <u>only the <strong>mint</strong> can check whether <strong>ecash</strong> is valid</u>.
+				That makes <code>C</code> different from a normal digital signature, which anyone can check with a public-key.
+			</p>
+			<p>
+				(People pointed this out about Wagner's scheme back in 1996.)
+			</p>
+			<p>
+				<strong>Cashu</strong> partly fixes this with <strong><abbr title="discrete-log equality">DLEQ</abbr> proofs</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-12), covered further below.
+			</p>
+		</section>
+		<section>
+			<h1>Blind Diffie-Hellman Key Exchange: In Go</h1>
+			<p>
+				Here is the whole thing in the <strong>Go</strong> programming-language (<strong><abbr title="Go programming-language">Golang</abbr></strong>), using the <code>github.com/decred/dcrd/dcrec/secp256k1/v4</code> package for the elliptic-curve math.
+				Its <code>hashToCurve</code>, blinding, and signing match the <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00 test vectors.
+			</p>
+			<figure>
+				<pre>
+<code>package main
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+)
+
+// hashToCurve maps a secret to a point Y on the secp256k1 curve (as in NUT-00).
+// Nobody knows the discrete-log of Y — which is what stops forgeries.
+func hashToCurve(secret []byte) *secp256k1.JacobianPoint {
+	const domainSeparator = "Secp256k1_HashToCurve_Cashu_"
+
+	msgHash := sha256.Sum256(append([]byte(domainSeparator), secret...))
+
+	for counter := uint32(0); ; counter++ {
+		var ctr [4]byte
+		binary.LittleEndian.PutUint32(ctr[:], counter)
+
+		h := sha256.Sum256(append(msgHash[:], ctr[:]...))
+
+		pubKey, err := secp256k1.ParsePubKey(append([]byte{0x02}, h[:]...))
+		if nil == err {
+			var Y secp256k1.JacobianPoint
+			pubKey.AsJacobian(&amp;Y)
+			return &amp;Y
+		}
+	}
+}
+
+// add returns P + Q.
+func add(P, Q *secp256k1.JacobianPoint) *secp256k1.JacobianPoint {
+	var R secp256k1.JacobianPoint
+	secp256k1.AddNonConst(P, Q, &amp;R)
+	R.ToAffine()
+	return &amp;R
+}
+
+// mul returns k×P.
+func mul(k *secp256k1.ModNScalar, P *secp256k1.JacobianPoint) *secp256k1.JacobianPoint {
+	var R secp256k1.JacobianPoint
+	secp256k1.ScalarMultNonConst(k, P, &amp;R)
+	R.ToAffine()
+	return &amp;R
+}
+
+// mulG returns k×G (where G is the secp256k1 generator point).
+func mulG(k *secp256k1.ModNScalar) *secp256k1.JacobianPoint {
+	var R secp256k1.JacobianPoint
+	secp256k1.ScalarBaseMultNonConst(k, &amp;R)
+	R.ToAffine()
+	return &amp;R
+}
+
+// neg returns −P.
+func neg(P *secp256k1.JacobianPoint) *secp256k1.JacobianPoint {
+	R := *P
+	R.Y.Negate(1).Normalize()
+	return &amp;R
+}
+
+// equal reports whether P and Q are the same point.
+func equal(P, Q *secp256k1.JacobianPoint) bool {
+	return P.X.Equals(&amp;Q.X) &amp;&amp; P.Y.Equals(&amp;Q.Y)
+}
+
+// hexOf returns the compressed (33-byte) hexadecimal form of a point.
+func hexOf(P *secp256k1.JacobianPoint) string {
+	return hex.EncodeToString(secp256k1.NewPublicKey(&amp;P.X, &amp;P.Y).SerializeCompressed())
+}
+
+// randomScalar returns a random number from 1 to n−1.
+func randomScalar() *secp256k1.ModNScalar {
+	key, err := secp256k1.GeneratePrivateKey()
+	if nil != err {
+		panic(err)
+	}
+	return &amp;key.Key
+}
+
+func main() {
+	// THE MINT (Bob) — has a private-key k, and publishes the public-key K = k×G.
+	k := randomScalar()
+	K := mulG(k)
+
+	// THE WALLET (Alice) — picks a random secret x, and computes Y = hash_to_curve(x).
+	var x [32]byte
+	rand.Read(x[:])
+	secret := []byte(hex.EncodeToString(x[:]))
+	Y := hashToCurve(secret)
+
+	// BLINDING (Alice) — B_ = Y + r×G
+	r := randomScalar()
+	B_ := add(Y, mulG(r))
+
+	// SIGNING (Bob) — C_ = k×B_
+	// (Bob only ever sees B_. He never sees the secret x, nor Y.)
+	C_ := mul(k, B_)
+
+	// UNBLINDING (Alice) — C = C_ − r×K   (which equals k×Y)
+	C := add(C_, neg(mul(r, K)))
+
+	// The ecash token is the pair (x, C).
+	fmt.Printf("secret: %s\n", secret)
+	fmt.Printf("C:      %s\n", hexOf(C))
+
+	// VERIFICATION (Bob) — later, when someone spends (x, C), check k×hash_to_curve(x) == C
+	fmt.Println("valid:", equal(mul(k, hashToCurve(secret)), C))
+}</code>
+				</pre>
+				<figcaption>
+					Blind Diffie-Hellman Key Exchange (<abbr title="Blind Diffie-Hellman Key Exchange">BDHKE</abbr>) in Go.
+				</figcaption>
+			</figure>
+			<p>
+				Running it outputs something like:
+			</p>
+			<figure>
+				<pre><code>
+secret: 2c52ba0a6335e29d60f3e728b888226c084120362cbe937eb74cea6b2d62b708
+C:      038924960e17bd50eb67f0335d4a5c53a747c0124a7c3914cf42a3a2d4cf31bea4
+valid: true
+				</code></pre>
+			</figure>
+			<p>
+				(This is example code to show the math.
+				It is not a <strong>Cashu</strong> implementation.
+				If you want to build on <strong>Cashu</strong>, use one of the existing libraries, listed further below.)
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>Double-Spending</h1>
+		<p>
+			A <strong>proof</strong> is just data.
+			Data can be copied.
+			So, what stops someone from spending the same <strong>proof</strong> twice‽
+		</p>
+		<p>
+			The <strong>mint</strong> keeps a list of every <strong>proof</strong> that has been spent.
+			More precisely, it keeps a list of <code>Y = hash_to_curve(x)</code> values.
+			(These are sometimes called <strong>nullifiers</strong>.)
+			When a <strong>proof</strong> is spent, the <strong>mint</strong> checks:
+		</p>
+		<ol>
+			<li>is the signature valid (i.e., <code>k × hash_to_curve(x) == C</code>)‽</li>
+			<li>is <code>Y</code> <strong>not</strong> already on the spent list‽</li>
+		</ol>
+		<p>
+			If both are true, it accepts the <strong>proof</strong>, and adds <code>Y</code> to the spent list.
+		</p>
+		<p>
+			Note that the spent list is <em>not</em> a list of users, or balances.
+			It is just a list of used-up secrets.
+			The <strong>mint</strong> does not know who has how much <strong>ecash</strong>.
+		</p>
+		<p>
+			A consequence of this is that, when Carol receives <strong>ecash</strong> from Alice, Carol should <strong>swap</strong> it right away.
+			Until Carol swaps it, Alice still knows the secrets, and could spend them first.
+			As <abbr title="Notation, Usage, and Terminology">NUT</abbr>-03 puts it, only after Carol has redeemed new outputs can Alice no longer double-spend.
+		</p>
+		<p>
+			<abbr title="Notation, Usage, and Terminology">NUT</abbr>-07 lets a <strong>wallet</strong> ask a <strong>mint</strong> about the state of a <strong>proof</strong> (by its <code>Y</code>)
+			—
+			which is one of: <code>UNSPENT</code>, <code>PENDING</code>, or <code>SPENT</code>.
+		</p>
+	</section>
+	<section>
+		<h1>Denominations</h1>
+		<p>
+			Paper cash comes in denominations
+			—
+			e.g., $1, $5, $10, $20 bills.
+			<strong>Cashu</strong> <strong>ecash</strong> also comes in denominations.
+		</p>
+		<p>
+			A <strong>Cashu</strong> <strong>mint</strong> uses a <u>different private-key for each denomination</u>.
+			Usually, the denominations are powers of 2:
+		</p>
+		<figure>
+			<pre>
+1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, …
+			</pre>
+		</figure>
+		<p>
+			So, a single <strong>proof</strong> is always worth exactly one of these amounts.
+			And, any amount can be made by adding up powers of 2 (i.e., its binary representation).
+			For example, 13 <strong>sats</strong>:
+		</p>
+		<figure>
+			<pre>
+13 = 0b1101 = 8 + 4 + 1
+
+┌───────┬───────┬───────┬───────┐
+│   1   │   1   │   0   │   1   │
+└───────┴───────┴───────┴───────┘
+    ↓       ↓       ↓       ↓
+    8       4      (2)      1
+			</pre>
+			<figcaption>
+				13 <strong>sats</strong> of <strong>ecash</strong> is 3 <strong>proofs</strong>: one 8, one 4, and one 1.
+			</figcaption>
+		</figure>
+		<p>
+			Because the denomination of every <strong>proof</strong> is visible to the <strong>mint</strong>, <strong>Cashu</strong> hides <em>who</em>, but not <em>how much</em>.
+		</p>
+		<section>
+			<h1>Denominations: Making Change</h1>
+			<p>
+				What if you have the wrong denominations‽
+				You swap.
+			</p>
+			<p>
+				Here is the example from <abbr title="Notation, Usage, and Terminology">NUT</abbr>-03.
+				Alice has <strong>proofs</strong> worth <code>[32, 16, 16]</code> (a total of 64), and wants to send Carol 40.
+				She <strong>swaps</strong> them with the <strong>mint</strong> for <code>[8, 32, 8, 16]</code> (still a total of 64).
+				Then she sends Carol <code>32 + 8</code> (= 40), and keeps <code>8 + 16</code> (= 24).
+			</p>
+			<figure>
+				<pre>
+have:  [32] [16] [16]                       = 64
+                 ↓  swap
+       [8] [32] [8] [16]                    = 64
+         ↙   ↓     ↘   ↘
+send:  [32] [8]               = 40
+keep:              [8] [16]   = 24
+				</pre>
+			</figure>
+			<p>
+				(The specification recommends a <strong>wallet</strong> sort the outputs it asks for by amount, so the order doesn't hint at which ones are for the payment.)
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>Keysets</h1>
+		<p>
+			A <strong>mint</strong>'s set of public-keys
+			—
+			one per denomination
+			—
+			is called a <strong>keyset</strong>.
+			A <strong>keyset</strong> looks something like this:
+		</p>
+		<figure>
+			<pre><code>
+{
+  "1": "02194603ffa36356f4a56b7df9371fc3192472351453ec7398b8da8117e7c3e104",
+  "2": "03b0f36d6d47ce14df8a7be9137712c42bcdd960b19dd02f1d4a9703b1f31d7513",
+  "4": "0366be6e026e42852498efb82014ca91e89da2e7a5bd3761bdad699fa2aec9fe09",
+  "8": "0253de5237f189606f29d8a690ea719f74d65f617bb1cb6fbea34f2bc4f930016d",
+  …
+}
+			</code></pre>
+			<figcaption>
+				A <strong>keyset</strong>, mapping each amount to a public-key (from the <abbr title="Notation, Usage, and Terminology">NUT</abbr>-01 example).
+			</figcaption>
+		</figure>
+		<p>
+			A <strong>mint</strong> can have more than one <strong>keyset</strong> (for different units, like <code>sat</code> or <code>usd</code>, or because it rotated its keys).
+			Each <strong>keyset</strong> has a <strong>keyset ID</strong>, which is derived by hashing its public-keys (and some of its settings).
+			Every <strong>proof</strong> says which <strong>keyset ID</strong> it belongs to.
+		</p>
+		<p>
+			A <strong>wallet</strong> fetches the <strong>mint</strong>'s <strong>keysets</strong> over <abbr title="HyperText Transfer Protocol">HTTP</abbr>, at <code>GET /v1/keys</code> and <code>GET /v1/keysets</code> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-01 and <abbr title="Notation, Usage, and Terminology">NUT</abbr>-02).
+		</p>
+		<p>
+			The original <strong>keyset IDs</strong> were 8 bytes, starting with <code>00</code> (e.g., <code>009a1f293253e41e</code>).
+			Since January 2026, the current version is 33 bytes, starting with <code>01</code>.
+			The change came after a security researcher (conduition) found that a malicious <strong>mint</strong> could craft a colliding <strong>keyset ID</strong> under the old scheme, and use it to steal <strong>ecash</strong> a user held at <em>other</em> <strong>mints</strong>.
+		</p>
+		<p>
+			<strong>Wallets</strong> are supposed to compute <strong>keyset IDs</strong> themselves, rather than trusting what the <strong>mint</strong> says.
+			That also helps catch a <strong>mint</strong> that tries to give different users different keys, so it can tell them apart (sometimes called “tagging”).
+		</p>
+	</section>
+	<section>
+		<h1>Tokens</h1>
+		<p>
+			When Alice sends <strong>ecash</strong> to Carol, the <strong>proofs</strong> (plus the <strong>mint</strong>'s <abbr title="Uniform Resource Locator">URL</abbr>) are serialized into a string called a <strong>token</strong>.
+			<strong>Tokens</strong> look like this:
+		</p>
+		<figure>
+			<pre>
+cashu B o2F0gqJhaUgA_9SLj17PgGFwgaNhYQFhc3hAYWNjMTI0MzVl…
+ ↑    ↑ ↑
+ │    │ └── the token data (base64url)
+ │    └──── version
+ └───────── prefix
+			</pre>
+		</figure>
+		<p>
+			There are two versions in use.
+		</p>
+		<section>
+			<h1>Tokens: cashuA</h1>
+			<p>
+				A <code>cashuA</code> <strong>token</strong> (version 3) is base64url-encoded JSON.
+				Here is the example from <abbr title="Notation, Usage, and Terminology">NUT</abbr>-00:
+			</p>
+			<figure>
+				<pre><code>
+{
+  "token": [
+    {
+      "mint": "https://8333.space:3338",
+      "proofs": [
+        {
+          "amount": 2,
+          "id": "009a1f293253e41e",
+          "secret": "407915bc212be61a77e3e6d2aeb4c727980bda51cd06a6afc29e2861768a7837",
+          "C": "02bc9097997d81afb2cc7346b5e4345a9346bd2a506eb7958598a72f0cf85163ea"
+        },
+        {
+          "amount": 8,
+          "id": "009a1f293253e41e",
+          "secret": "fe15109314e61d7756b0f8ee0f23a624acaa3f4e042f61433c728c7057b931be",
+          "C": "029e8e5050b890a7d6c0968db16bc1d5d5fa040ea1de284f6ec69d61299f671059"
+        }
+      ]
+    }
+  ],
+  "unit": "sat",
+  "memo": "Thank you."
+}
+				</code></pre>
+				<figcaption>
+					A 10 <strong>sat</strong> <strong>token</strong> (a 2 <strong>sat</strong> <strong>proof</strong> plus an 8 <strong>sat</strong> <strong>proof</strong>), before encoding.
+				</figcaption>
+			</figure>
+			<p>
+				Which, when encoded, becomes <code>cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vODMzMy5zcGFjZTozMzM4Iiwi…</code>
+			</p>
+			<p>
+				Notice that each <strong>proof</strong> is the <code>(x, C)</code> pair from earlier
+				—
+				<code>secret</code> is <code>x</code>, and <code>C</code> is <code>C</code>
+				—
+				plus an <code>amount</code> (the denomination) and an <code>id</code> (the <strong>keyset ID</strong>).
+			</p>
+			<p>
+				<code>cashuA</code> <strong>tokens</strong> are deprecated.
+			</p>
+		</section>
+		<section>
+			<h1>Tokens: cashuB</h1>
+			<p>
+				A <code>cashuB</code> <strong>token</strong> (version 4) is base64url-encoded <strong><abbr title="Concise Binary Object Representation">CBOR</abbr></strong>, with single-letter keys and raw bytes (rather than hexadecimal strings), to make it smaller.
+				Its structure (written as if it were JSON) is:
+			</p>
+			<figure>
+				<pre><code>
+{
+  "m": "https://mint.example.com",   // mint URL
+  "u": "sat",                        // unit
+  "d": "Thank you.",                 // memo (optional)
+  "t": [
+    {
+      "i": &lt;bytes&gt;,                   // keyset ID
+      "p": [
+        {
+          "a": 2,                    // amount
+          "s": "407915bc…",          // secret
+          "c": &lt;bytes&gt;,               // signature C
+          "d": { "e": …, "s": …, "r": … },  // DLEQ proof (optional)
+          "w": "…"                   // witness (optional)
+        }
+      ]
+    }
+  ]
+}
+				</code></pre>
+				<figcaption>
+					The structure of a <code>cashuB</code> <strong>token</strong>.
+				</figcaption>
+			</figure>
+			<p>
+				A <code>cashuB</code> <strong>token</strong> holds <strong>ecash</strong> from only one <strong>mint</strong>.
+			</p>
+			<p>
+				There is also a <code>cashu:</code> <abbr title="Uniform Resource Identifier">URI</abbr> scheme, so that <strong>tokens</strong> can be made clickable
+				—
+				e.g., <code>cashu:cashuB…</code>
+				—
+				and a raw binary form (prefixed with <code>craw</code>) for things like <abbr title="Near-Field Communication">NFC</abbr>.
+				Large <strong>tokens</strong> can be shown as animated <abbr title="Quick Response">QR</abbr> codes (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-16).
+			</p>
+		</section>
+		<section>
+			<h1>Tokens: Bearer</h1>
+			<p>
+				Remember, a <strong>token</strong> is a <strong>bearer</strong> asset.
+				The <strong>token</strong> string <em>is</em> the money.
+				Anyone who sees it can spend it.
+				If you paste a <strong>token</strong> into a public chat, whoever swaps it first gets it.
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>Lightning</h1>
+		<p>
+			<strong>Cashu</strong> <strong>mints</strong> usually connect to the <strong>Bitcoin</strong> world via the <strong>Lightning Network</strong>.
+			Bitcoin comes in to the <strong>mint</strong> as a Lightning payment, and goes out of the <strong>mint</strong> as a Lightning payment.
+		</p>
+		<p>
+			Both <strong>minting</strong> and <strong>melting</strong> use a two-step <em>quote</em> pattern:
+			first ask the <strong>mint</strong> for a quote, then act on it.
+		</p>
+		<section>
+			<h1>Lightning: Minting</h1>
+			<p>
+				<strong>Minting</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-04 and <abbr title="Notation, Usage, and Terminology">NUT</abbr>-23) turns bitcoin into <strong>ecash</strong>:
+			</p>
+			<figure>
+				<pre>
+WALLET                                                       MINT
+
+POST /v1/mint/quote/bolt11  {"amount": 10, "unit": "sat"}  ────→
+                       ←────  {"quote": "…", "request": "lnbc100n1…", "state": "UNPAID", …}
+
+(the user pays the Lightning invoice "lnbc100n1…")
+
+POST /v1/mint/bolt11  {"quote": "…", "outputs": [B_, B_, …]}  ────→
+                       ←────  {"signatures": [C_, C_, …]}
+
+(the wallet unblinds each C_ into C — and now has ecash)
+				</pre>
+				<figcaption>
+					<strong>Minting</strong> <strong>ecash</strong>, by paying a Lightning invoice.
+				</figcaption>
+			</figure>
+			<p>
+				Notice that the <strong>mint</strong> knows a Lightning payment came in.
+				But, because the <strong>outputs</strong> are blinded, it does not know which <strong>ecash</strong> that payment turned into.
+			</p>
+			<p>
+				(The quote ID is effectively a password.
+				Anyone who knows it could claim the <strong>ecash</strong> once the invoice is paid.
+				<abbr title="Notation, Usage, and Terminology">NUT</abbr>-20 fixes this by letting the <strong>wallet</strong> lock the quote to a public-key, so that a signature is required to claim it.)
+			</p>
+		</section>
+		<section>
+			<h1>Lightning: Melting</h1>
+			<p>
+				<strong>Melting</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-05 and <abbr title="Notation, Usage, and Terminology">NUT</abbr>-23) turns <strong>ecash</strong> back into bitcoin
+				—
+				by having the <strong>mint</strong> pay a Lightning invoice for you:
+			</p>
+			<figure>
+				<pre>
+WALLET                                                       MINT
+
+POST /v1/melt/quote/bolt11  {"request": "lnbc…", "unit": "sat"}  ────→
+                       ←────  {"quote": "…", "amount": 100000, "fee_reserve": 1000, …}
+
+POST /v1/melt/bolt11  {"quote": "…", "inputs": [proofs…], "outputs": [blank B_…]}  ────→
+
+(the mint pays the Lightning invoice)
+
+                       ←────  {"state": "PAID", "payment_preimage": "…", "change": [C_…]}
+				</pre>
+				<figcaption>
+					<strong>Melting</strong> <strong>ecash</strong>, to pay a Lightning invoice.
+				</figcaption>
+			</figure>
+			<p>
+				The <code>payment_preimage</code> is the receipt
+				—
+				proof that the Lightning invoice was paid.
+			</p>
+		</section>
+		<section>
+			<h1>Lightning: Fee Reserve</h1>
+			<p>
+				Paying over Lightning costs a routing fee.
+				But the <strong>mint</strong> doesn't know exactly how much the fee will be until <em>after</em> it pays.
+				So, it asks for a <code>fee_reserve</code> up front (the maximum it might need), and gives back whatever it didn't use as change (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-08).
+			</p>
+			<p>
+				But how can the <strong>mint</strong> give change as <em>blinded</em> <strong>ecash</strong>, when it doesn't know how much change there will be until afterwards‽
+				The trick is that the <strong>wallet</strong> sends some <strong>blank outputs</strong>
+				—
+				blinded messages without an amount.
+				The <strong>mint</strong> fills in whichever amounts it needs.
+				The <strong>wallet</strong> sends <code>max(ceil(log2(fee_reserve)), 1)</code> blank outputs, which is enough to represent any amount up to the <code>fee_reserve</code>.
+			</p>
+			<p>
+				Here is the example from <abbr title="Notation, Usage, and Terminology">NUT</abbr>-08.
+				To pay a 100,000 <strong>sat</strong> invoice with a <code>fee_reserve</code> of 1,000 <strong>sats</strong>, the <strong>wallet</strong> sends 101,000 <strong>sats</strong> of <strong>proofs</strong>, plus 10 blank outputs.
+				The actual Lightning fee turns out to be 100 <strong>sats</strong>.
+				So, the <strong>mint</strong> returns 900 <strong>sats</strong> of change, using 4 of the blank outputs:
+			</p>
+			<figure>
+				<pre>
+900 = 512 + 256 + 128 + 4
+				</pre>
+			</figure>
+		</section>
+		<section>
+			<h1>Lightning: Moving Between Mints</h1>
+			<p>
+				<strong>Ecash</strong> from one <strong>mint</strong> can only be redeemed at that <strong>mint</strong>.
+				To move value from mint A to mint B, a <strong>wallet</strong> <strong>melts</strong> at mint A, to pay a Lightning invoice that came from a <strong>mint</strong> quote at mint B.
+			</p>
+			<figure>
+				<pre>
+mint A  ──melt──→  ⚡ Lightning payment ⚡  ──mint──→  mint B
+				</pre>
+			</figure>
+		</section>
+		<section>
+			<h1>Lightning: And Others</h1>
+			<p>
+				The quote pattern is generic.
+				The payment method is part of the <abbr title="Uniform Resource Locator">URL</abbr> (e.g., <code>/v1/mint/quote/bolt11</code>).
+				So, besides <strong><abbr title="Basis of Lightning Technology">BOLT</abbr>11</strong> Lightning invoices (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-23), there is also <strong><abbr title="Basis of Lightning Technology">BOLT</abbr>12</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-25), and, since 2026, plain on-chain <strong>Bitcoin</strong> addresses (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-30).
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1>Fees</h1>
+		<p>
+			A <strong>mint</strong> may charge a fee for <strong>swaps</strong> and <strong>melts</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-02).
+			The fee is charged <em>per input</em> (i.e., per <strong>proof</strong> spent), in “parts per thousand”, and is set per <strong>keyset</strong> with <code>input_fee_ppk</code>.
+			The total is rounded up:
+		</p>
+		<figure>
+			<pre><code>
+fees = ceil( sum(input_fee_ppk of each input) / 1000 )
+			</code></pre>
+		</figure>
+		<p>
+			For example, with <code>input_fee_ppk</code> = 100, spending 1 to 10 <strong>proofs</strong> costs 1 <strong>sat</strong>, spending 11 to 20 <strong>proofs</strong> costs 2 <strong>sats</strong>, and so on.
+		</p>
+	</section>
+	<section>
+		<h1>Spending Conditions</h1>
+		<p>
+			So far, the secret <code>x</code> has been just random bytes.
+			Whoever knows <code>x</code> (and <code>C</code>) can spend the <strong>ecash</strong>.
+		</p>
+		<p>
+			But, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-10 lets the secret be a structured value instead, which <em>locks</em> the <strong>ecash</strong>, so it can only be spent if certain conditions are met.
+			The general form is:
+		</p>
+		<figure>
+			<pre><code>
+["&lt;kind&gt;", {"nonce": "&lt;random&gt;", "data": "&lt;…&gt;", "tags": [[…], …]}]
+			</code></pre>
+		</figure>
+		<p>
+			The <strong>mint</strong> sees this structured secret only at spending time, when it checks the conditions.
+		</p>
+		<section>
+			<h1>Spending Conditions: Pay To Public Key</h1>
+			<p>
+				<strong>Pay To Public Key</strong> (<strong><abbr title="Pay To Public Key">P2PK</abbr></strong>, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-11) locks <strong>ecash</strong> to a public-key.
+				To spend it, you need a Schnorr signature from the matching private-key.
+			</p>
+			<figure>
+				<pre><code>
+[
+  "P2PK",
+  {
+    "nonce": "859d4935c4907062a6297cf4e663e2835d90d97ecdd510745d32f6816323a41f",
+    "data": "0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7",
+    "tags": [["sigflag", "SIG_INPUTS"]]
+  }
+]
+				</code></pre>
+				<figcaption>
+					A <abbr title="Pay To Public Key">P2PK</abbr> secret.
+					<code>data</code> is the public-key the <strong>ecash</strong> is locked to.
+				</figcaption>
+			</figure>
+			<p>
+				This is useful because Alice can send Carol <strong>ecash</strong> that <em>only Carol</em> can spend
+				—
+				and that even Alice can no longer spend.
+				Which makes it much safer for Carol to receive <strong>ecash</strong> while offline.
+			</p>
+			<p>
+				Tags allow for multi-signature (<code>pubkeys</code>, <code>n_sigs</code>), a time-lock (<code>locktime</code>), and refund keys (<code>refund</code>) that can spend it after the time-lock expires.
+			</p>
+			<p>
+				<strong>Pay-to-Blinded-Key</strong> (<strong><abbr title="Pay-to-Blinded-Key">P2BK</abbr></strong>, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-28) is a 2026 addition that blinds the public-key, so the <strong>mint</strong> can't tell that different <abbr title="Pay To Public Key">P2PK</abbr> payments went to the same person.
+			</p>
+		</section>
+		<section>
+			<h1>Spending Conditions: Hashed Timelock Contracts</h1>
+			<p>
+				<strong>Hashed Timelock Contracts</strong> (<strong><abbr title="Hashed Timelock Contract">HTLC</abbr>s</strong>, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-14) lock <strong>ecash</strong> to a hash.
+				To spend it, you need the <em>preimage</em> of that hash (i.e., the value that hashes to it).
+				After a time-lock expires, the sender can take it back.
+			</p>
+			<p>
+				This is the same building block that the <strong>Lightning Network</strong> uses.
+				It makes atomic swaps possible (for example, between two <strong>mints</strong>).
+			</p>
+		</section>
+		<section>
+			<h1>Spending Conditions: A Warning</h1>
+			<p>
+				<abbr title="Notation, Usage, and Terminology">NUT</abbr>-10 warns that if a <strong>mint</strong> does <strong>not</strong> support a particular kind of spending condition, it may treat the <strong>ecash</strong> as a regular anyone-can-spend <strong>proof</strong>.
+				So, a <strong>wallet</strong> should check what a <strong>mint</strong> supports (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-06, <code>GET /v1/info</code>) before locking <strong>ecash</strong> at it.
+			</p>
+		</section>
+	</section>
+	<section>
+		<h1><abbr title="discrete-log equality">DLEQ</abbr> Proofs</h1>
+		<p>
+			Earlier, it was mentioned that only the <strong>mint</strong> can verify <strong>ecash</strong>, since that requires its private-key <code>k</code>.
+			That is a problem for Carol.
+			If Alice hands Carol a <strong>token</strong> while Carol is offline, how can Carol know the <strong>mint</strong> really signed it‽
+		</p>
+		<p>
+			<abbr title="Notation, Usage, and Terminology">NUT</abbr>-12 solves this with a <strong>discrete-log equality</strong> (<strong><abbr title="discrete-log equality">DLEQ</abbr></strong>) proof.
+			When the <strong>mint</strong> returns <code>C_ = k×B_</code>, it also returns a small zero-knowledge proof (<code>e</code>, <code>s</code>) that <em>the same</em> <code>k</code> was used in <code>K = k×G</code> (its published public-key) and in <code>C_ = k×B_</code>.
+		</p>
+		<figure>
+			<pre><code>
+MINT (proving):
+	r  = random nonce
+	R1 = r×G
+	R2 = r×B_
+	e  = hash(R1, R2, K, C_)
+	s  = r + e×k
+
+ANYONE (verifying):
+	R1 = s×G  − e×K
+	R2 = s×B_ − e×C_
+	check e == hash(R1, R2, K, C_)
+			</code></pre>
+			<figcaption>
+				A <abbr title="discrete-log equality">DLEQ</abbr> proof, as in <abbr title="Notation, Usage, and Terminology">NUT</abbr>-12 (simplified).
+			</figcaption>
+		</figure>
+		<p>
+			When Alice sends Carol a <strong>proof</strong>, she includes the <abbr title="discrete-log equality">DLEQ</abbr> values <em>plus</em> her blinding factor <code>r</code>.
+			With those, Carol can rebuild <code>B_</code> and <code>C_</code>, and check the proof using only public information.
+		</p>
+		<p>
+			Note, though, that a <abbr title="discrete-log equality">DLEQ</abbr> proof only shows that the <strong>ecash</strong> was signed by the <strong>mint</strong>.
+			It does <strong>not</strong> show that the <strong>ecash</strong> hasn't already been spent.
+			Only the <strong>mint</strong> knows that.
+			(Which is why <abbr title="discrete-log equality">DLEQ</abbr> plus <abbr title="Pay To Public Key">P2PK</abbr> is a nice combination for receiving offline.)
+		</p>
+		<p>
+			(And, the <strong>wallet</strong> must strip <code>r</code> out before sending the <strong>proof</strong> to the <strong>mint</strong>
+			—
+			since <code>r</code> is exactly the thing that would let the <strong>mint</strong> link the <strong>ecash</strong> back to its minting.)
+		</p>
+	</section>
+	<section>
+		<h1>Backup And Restore</h1>
+		<p>
+			Since <strong>ecash</strong> is a bearer asset, losing your <strong>wallet</strong> means losing your <strong>ecash</strong>.
+		</p>
+		<p>
+			<abbr title="Notation, Usage, and Terminology">NUT</abbr>-13 lets a <strong>wallet</strong> generate its secrets <code>x</code> and blinding factors <code>r</code> deterministically, from a 12-word seed phrase (like a Bitcoin wallet), plus a counter.
+			And, <abbr title="Notation, Usage, and Terminology">NUT</abbr>-09 has the <strong>mint</strong> remember every <code>(B_, C_)</code> pair it ever signed.
+		</p>
+		<p>
+			So, to restore, a <strong>wallet</strong> regenerates its <code>B_</code> values from the seed phrase, asks the <strong>mint</strong> for the matching <code>C_</code> values (<code>POST /v1/restore</code>), unblinds them, and then checks which are still unspent.
+		</p>
+		<p>
+			(Of course, this only works if the <strong>mint</strong> is still around.)
+		</p>
+	</section>
+	<section>
+		<h1>HTTP 402 Payment Required</h1>
+		<p>
+			Way back in 1997, <abbr title="HyperText Transfer Protocol">HTTP</abbr>/1.1 reserved the status code <strong>402 Payment Required</strong>
+			—
+			“for future use”.
+			It never really got used, because the <abbr title="world wide web">Web</abbr> never got a native way to pay.
+		</p>
+		<p>
+			<abbr title="Notation, Usage, and Terminology">NUT</abbr>-24 uses <strong>Cashu</strong> to fill that gap.
+			A server responds with <code>402 Payment Required</code>, and an <code>X-Cashu</code> header containing a <strong>payment request</strong> (how much, in what unit, from which <strong>mints</strong>).
+			The client retries the request, with a <code>cashuB</code> <strong>token</strong> in the <code>X-Cashu</code> header.
+		</p>
+		<figure>
+			<pre><code>
+GET /api/thing HTTP/1.1
+Host: example.com
+
+HTTP/1.1 402 Payment Required
+X-Cashu: creqA…
+
+GET /api/thing HTTP/1.1
+Host: example.com
+X-Cashu: cashuB…
+
+HTTP/1.1 200 OK
+…
+			</code></pre>
+			<figcaption>
+				Paying for an <abbr title="HyperText Transfer Protocol">HTTP</abbr> request with <strong>Cashu</strong> (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-24).
+			</figcaption>
+		</figure>
+		<p>
+			Since a <strong>Cashu</strong> <strong>token</strong> is just a string, and doesn't require an account, this is a natural fit for pay-per-request <abbr title="application programming interface">API</abbr>s.
+			For example, <strong>Routstr</strong> is a marketplace for <abbr title="large language model">LLM</abbr> (AI) inference paid for with <strong>Cashu</strong>.
+		</p>
+	</section>
+	<section>
+		<h1>Nostr</h1>
+		<p>
+			<strong>Cashu</strong> and <strong>Nostr</strong> have become closely connected.
+		</p>
+		<dl>
+			<dt><abbr title="Nostr Implementation Possibility">NIP</abbr>-60 — Cashu Wallets</dt>
+			<dd>
+				<p>
+					Stores a <strong>Cashu</strong> <strong>wallet</strong> (encrypted) on <strong>Nostr</strong> relays, so it follows the user from app to app.
+					Unspent <strong>proofs</strong> are kept in kind <code>7375</code> events, the wallet itself is a kind <code>17375</code> event, and spending history is kind <code>7376</code>.
+				</p>
+			</dd>
+
+			<dt><abbr title="Nostr Implementation Possibility">NIP</abbr>-61 — Nutzaps</dt>
+			<dd>
+				<p>
+					A <strong>nutzap</strong> is a <strong>Cashu</strong> payment (<abbr title="Pay To Public Key">P2PK</abbr>-locked to the recipient) published as a <strong>Nostr</strong> event (kind <code>9321</code>).
+					The payment is its own receipt.
+					And, thanks to <abbr title="discrete-log equality">DLEQ</abbr> proofs, anyone can check it offline.
+				</p>
+			</dd>
+
+			<dt><abbr title="Nostr Implementation Possibility">NIP</abbr>-87 — Ecash Mint Discoverability</dt>
+			<dd>
+				<p>
+					<strong>Mints</strong> can announce themselves (kind <code>38172</code>), and users can recommend and review them (kind <code>38000</code>).
+				</p>
+			</dd>
+		</dl>
+		<p>
+			<strong>Cashu</strong> payment requests (<abbr title="Notation, Usage, and Terminology">NUT</abbr>-18) can also use <strong>Nostr</strong> direct messages to deliver the payment.
+		</p>
+	</section>
+	<section>
+		<h1>Trust And Risks</h1>
+		<p>
+			Back to the catch from the school fair.
+			<strong>Cashu</strong> is <strong>custodial</strong>.
+			The <strong>Cashu</strong> documentation says it plainly: <q>Ecash wallets are always custodial.</q>
+		</p>
+		<p>
+			Calle has said: <q>when a mint goes down, your sats are gone.</q>
+		</p>
+		<p>
+			Some of the risks:
+		</p>
+		<dl>
+			<dt>rug pull</dt>
+			<dd>
+				<p>
+					The <strong>mint</strong> operator could disappear with the bitcoin.
+				</p>
+			</dd>
+
+			<dt>getting rugged</dt>
+			<dd>
+				<p>
+					The <strong>mint</strong> itself could be hacked, or drained via a software bug.
+					(For example, in June 2026, a researcher showed how one of Nutshell's Lightning backends could be tricked into paying excessive routing fees, again and again.)
+				</p>
+			</dd>
+
+			<dt>going offline</dt>
+			<dd>
+				<p>
+					If the <strong>mint</strong> is down, you cannot <strong>swap</strong> or <strong>melt</strong>.
+					And, a receiver cannot safely accept <strong>ecash</strong> without swapping.
+				</p>
+			</dd>
+
+			<dt>fractional reserve</dt>
+			<dd>
+				<p>
+					Nothing stops a <strong>mint</strong> from secretly issuing more <strong>ecash</strong> than it has bitcoin.
+					(“Proof of liabilities” schemes have been proposed, but none are part of the specification as of November 2026.)
+				</p>
+			</dd>
+
+			<dt>censorship</dt>
+			<dd>
+				<p>
+					Since only the <strong>mint</strong> can verify <strong>ecash</strong>, a <strong>mint</strong> could falsely claim something was already spent.
+					And, a <strong>mint</strong> can see the Lightning invoices it is asked to pay, and refuse some of them.
+				</p>
+			</dd>
+
+			<dt>lost wallet</dt>
+			<dd>
+				<p>
+					Bearer asset.
+					No seed phrase backup means no recovery.
+				</p>
+			</dd>
+		</dl>
+		<p>
+			The usual advice is: use <strong>mints</strong> you trust, keep amounts small, and don't sit on <strong>ecash</strong> for long.
+			Think of it like the cash in your pocket, rather than your savings.
+		</p>
+		<p>
+			(Mint directories such as <strong>cashumints.space</strong> list <strong>mints</strong>, with reviews.
+			It warns: <q>Mints are custodial. A mint can disappear with your money.</q>)
+		</p>
+	</section>
+	<section>
+		<h1>Privacy</h1>
+		<p>
+			<strong>Cashu</strong>'s privacy is <em>from the <strong>mint</strong></em>.
+			But it isn't total.
+		</p>
+		<p>
+			What the <strong>mint</strong> <strong>cannot</strong> see:
+		</p>
+		<ul>
+			<li>which minting a spent <strong>proof</strong> came from (thanks to blinding),</li>
+			<li>anyone's balance (there are no accounts),</li>
+			<li>who sent <strong>ecash</strong> to whom (<strong>tokens</strong> are passed directly between users).</li>
+		</ul>
+		<p>
+			What the <strong>mint</strong> <strong>can</strong> see:
+		</p>
+		<ul>
+			<li>the amounts (denominations are public),</li>
+			<li>the Lightning invoices it pays on a <strong>melt</strong> (and so, who is being paid),</li>
+			<li>your <abbr title="Internet Protocol">IP</abbr> address (unless you use Tor, or similar),</li>
+			<li>timing (e.g., a 1,337 <strong>sat</strong> mint followed by a 1,337 <strong>sat</strong> melt a minute later is suspicious).</li>
+		</ul>
+		<p>
+			Also, the more people using the same <strong>mint</strong> (with the same <strong>keyset</strong>), the bigger the crowd you hide in.
+		</p>
+	</section>
+	<section>
+		<h1>Authentication</h1>
+		<p>
+			Some <strong>mint</strong> operators want to (or must) restrict who can use their <strong>mint</strong>.
+			So, in 2025, two optional specifications were added:
+		</p>
+		<dl>
+			<dt><abbr title="Notation, Usage, and Terminology">NUT</abbr>-21 — Clear Authentication</dt>
+			<dd>
+				<p>
+					Log in with OAuth 2.0 / OpenID Connect.
+					(The specification itself warns that this “breaks the user's privacy”.)
+				</p>
+			</dd>
+
+			<dt><abbr title="Notation, Usage, and Terminology">NUT</abbr>-22 — Blind Authentication</dt>
+			<dd>
+				<p>
+					Once logged in, the user mints <strong>blind auth tokens</strong>
+					—
+					which are themselves <strong>ecash</strong> (with unit <code>auth</code>)
+					—
+					and spends one on each request.
+					So, the <strong>mint</strong> knows a request came from <em>someone</em> it authorized, but not <em>who</em>.
+				</p>
+			</dd>
+		</dl>
+		<p>
+			These were controversial.
+			Some argued that standardizing authentication makes <abbr title="know your customer">KYC</abbr> and censorship easier.
+			Others replied that authentication is optional, and users can pick other <strong>mints</strong>.
+		</p>
+	</section>
+	<section>
+		<h1>Cashu versus Fedimint</h1>
+		<p>
+			<strong>Fedimint</strong> is another <strong>Chaumian ecash</strong> system for <strong>Bitcoin</strong>.
+			The big difference is <em>who</em> holds the bitcoin.
+		</p>
+		<figure>
+			<table>
+				<thead>
+					<tr>
+						<th></th>
+						<th>Cashu</th>
+						<th>Fedimint</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th>custody</th>
+						<td>one operator per <strong>mint</strong></td>
+						<td>a federation of “guardians” (e.g., 3-of-4) in a threshold multisig</td>
+					</tr>
+					<tr>
+						<th>blind signatures</th>
+						<td><abbr title="Blind Diffie-Hellman Key Exchange">BDHKE</abbr> on secp256k1</td>
+						<td>threshold blind <abbr title="Boneh–Lynn–Shacham">BLS</abbr> signatures on <abbr title="Boneh–Lynn–Shacham">BLS</abbr>12-381</td>
+					</tr>
+					<tr>
+						<th>consensus</th>
+						<td>none needed</td>
+						<td>AlephBFT, between guardians</td>
+					</tr>
+					<tr>
+						<th>Lightning</th>
+						<td>the <strong>mint</strong> runs (or connects to) a Lightning node</td>
+						<td>via separate “gateways”</td>
+					</tr>
+					<tr>
+						<th>complexity</th>
+						<td>small, quick to deploy</td>
+						<td>more involved, guardians must coordinate</td>
+					</tr>
+				</tbody>
+			</table>
+		</figure>
+		<p>
+			The two have been moving closer together.
+			In October 2026, at bitcoin++ in Berlin, Calle presented “<strong>Federated Cashu</strong>”
+			—
+			a <strong>Cashu</strong> <strong>mint</strong> run by several operators, with threshold keys, and a move to <abbr title="Boneh–Lynn–Shacham">BLS</abbr> signatures (in what are being called “v3 keysets”).
+			As of November 2026, that is still a proposal, and not yet part of the specifications.
+		</p>
+	</section>
+	<section>
+		<h1>The <abbr title="Notation, Usage, and Terminology">NUTs</abbr></h1>
+		<p>
+			As of November 2026, there are 31 <strong><abbr title="Notation, Usage, and Terminology">NUTs</abbr></strong>.
+			<abbr title="Notation, Usage, and Terminology">NUT</abbr>-00 through <abbr title="Notation, Usage, and Terminology">NUT</abbr>-06 are <strong>mandatory</strong>.
+			The rest are <strong>optional</strong>.
+			A <strong>mint</strong> lists the optional <abbr title="Notation, Usage, and Terminology">NUTs</abbr> it supports at <code>GET /v1/info</code>.
+		</p>
+		<figure>
+			<table>
+				<thead>
+					<tr>
+						<th><abbr title="Notation, Usage, and Terminology">NUT</abbr></th>
+						<th>Title</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/00.md">00</a></td><td>Notation, Utilization, and Terminology (cryptography, data models, tokens)</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/01.md">01</a></td><td>Mint public key exchange</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/02.md">02</a></td><td>Keysets and fees</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/03.md">03</a></td><td>Swap tokens</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/04.md">04</a></td><td>Mint tokens</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/05.md">05</a></td><td>Melting tokens</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/06.md">06</a></td><td>Mint information</td><td>mandatory</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/07.md">07</a></td><td>Token state check</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/08.md">08</a></td><td>Lightning fee return</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/09.md">09</a></td><td>Restore signatures</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/10.md">10</a></td><td>Spending conditions</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/11.md">11</a></td><td>Pay to Public Key (<abbr title="Pay To Public Key">P2PK</abbr>)</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/12.md">12</a></td><td>Offline ecash signature validation (<abbr title="discrete-log equality">DLEQ</abbr>)</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/13.md">13</a></td><td>Deterministic secrets</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/14.md">14</a></td><td>Hashed Timelock Contracts (<abbr title="Hashed Timelock Contract">HTLC</abbr>s)</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/15.md">15</a></td><td>Partial multi-path payments</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/16.md">16</a></td><td>Animated <abbr title="Quick Response">QR</abbr> codes</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/17.md">17</a></td><td>WebSockets</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/18.md">18</a></td><td>Payment requests</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/19.md">19</a></td><td>Cached responses</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/20.md">20</a></td><td>Signature on mint quote</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/21.md">21</a></td><td>Clear authentication</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/22.md">22</a></td><td>Blind authentication</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/23.md">23</a></td><td><abbr title="Basis of Lightning Technology">BOLT</abbr>11</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/24.md">24</a></td><td><abbr title="HyperText Transfer Protocol">HTTP</abbr> 402 Payment Required</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/25.md">25</a></td><td><abbr title="Basis of Lightning Technology">BOLT</abbr>12</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/26.md">26</a></td><td>Payment request Bech32m encoding</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/27.md">27</a></td><td>Nostr mint backup</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/28.md">28</a></td><td>Pay-to-Blinded-Key (<abbr title="Pay-to-Blinded-Key">P2BK</abbr>)</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/29.md">29</a></td><td>Batched minting</td><td>optional</td></tr>
+					<tr><td><a href="https://github.com/cashubtc/nuts/blob/main/30.md">30</a></td><td>Payment method: on-chain</td><td>optional</td></tr>
+				</tbody>
+			</table>
+		</figure>
+	</section>
+	<section>
+		<h1>Implementations</h1>
+		<p>
+			Some <strong>Cashu</strong> <strong>mint</strong> implementations and libraries (as of November 2026):
+		</p>
+		<ul>
+			<li><strong>Nutshell</strong> — the reference implementation (wallet and mint), in Python. <abbr title="Massachusetts Institute of Technology">MIT</abbr> license.</li>
+			<li><strong><abbr title="Cashu Development Kit">CDK</abbr></strong> (Cashu Development Kit) — in Rust, including the <code>cdk-mintd</code> mint, with bindings for Swift, Kotlin, Go, Dart, and Python. Apache-2.0 or <abbr title="Massachusetts Institute of Technology">MIT</abbr> license.</li>
+			<li><strong>cashu-ts</strong> — a TypeScript library for wallets.</li>
+			<li><strong>nutmix</strong> — a mint, in Go.</li>
+		</ul>
+		<p>
+			Some <strong>Cashu</strong> <strong>wallets</strong>:
+		</p>
+		<ul>
+			<li><strong>Cashu.me</strong> (web, and native iOS and Android)</li>
+			<li><strong>Macadamia</strong> (iOS)</li>
+			<li><strong>Minibits</strong> (Android, iOS)</li>
+			<li><strong>Nutstash</strong> (web)</li>
+			<li><strong>Sovran</strong> (iOS, Android)</li>
+			<li><strong>eNuts</strong> (mobile)</li>
+		</ul>
+		<p>
+			Several Lightning wallets also have <strong>Cashu</strong> built in.
+			And, <strong>Numo</strong> is a point-of-sale app for accepting <strong>Cashu</strong> with <abbr title="Near-Field Communication">NFC</abbr> tap-to-pay.
+		</p>
+		<p>
+			For testing, <code>testnut.cashu.space</code> is a test <strong>mint</strong> that gives out fake <strong>ecash</strong>.
+		</p>
+	</section>
+	<section>
+		<h1>Sources</h1>
+		<ul>
+			<li><a href="https://bitcoin.design/guide/how-it-works/ecash/cashu/">Bitcoin Design Guide — Cashu</a></li>
+			<li><a href="https://bitcoin.design/guide/how-it-works/ecash/introduction/">Bitcoin Design Guide — Ecash</a></li>
+			<li><a href="https://github.com/cashubtc/nuts">Cashu <abbr title="Notation, Usage, and Terminology">NUTs</abbr> (specifications)</a></li>
+			<li><a href="https://github.com/cashubtc/nuts/blob/main/tests/00-tests.md"><abbr title="Notation, Usage, and Terminology">NUT</abbr>-00 test vectors</a></li>
+			<li><a href="https://docs.cashu.space/">Cashu documentation</a></li>
+			<li><a href="https://docs.cashu.space/faq">Cashu <abbr title="frequently asked questions">FAQ</abbr></a></li>
+			<li><a href="https://cashu.space/">cashu.space</a></li>
+			<li><a href="https://blog.cashu.space/">Cashu blog</a></li>
+			<li><a href="https://github.com/cashubtc/nutshell">Nutshell</a></li>
+			<li><a href="https://github.com/cashubtc/cdk">Cashu Development Kit (<abbr title="Cashu Development Kit">CDK</abbr>)</a></li>
+			<li><a href="https://github.com/cashubtc/awesome-cashu">Awesome Cashu</a></li>
+			<li><a href="https://gist.github.com/RubenSomsen/be7a4760dd4596d06963d67baf140406">Ruben Somsen — Blind Diffie-Hellman Key Exchange (blind ecash)</a></li>
+			<li><a href="https://mailing-list-archive.cryptoanarchy.wiki/archive/1996/03/d5adf33fee8e86395ae4cc25db3f398b9af35ed4ae487c8087cc8d25493762d8">David Wagner — Chaumian ecash without RSA (1996)</a></li>
+			<li><a href="https://github.com/benlaurie/lucre">Ben Laurie — Lucre</a></li>
+			<li><a href="https://en.wikipedia.org/wiki/Ecash">Wikipedia — Ecash</a></li>
+			<li><a href="https://en.wikipedia.org/wiki/DigiCash">Wikipedia — DigiCash</a></li>
+			<li><a href="https://en.wikipedia.org/wiki/Blind_signature">Wikipedia — Blind signature</a></li>
+			<li><a href="https://delvingbitcoin.org/t/building-intuition-for-the-cashu-blind-signature-scheme/506">Delving Bitcoin — Building Intuition for the Cashu Blind Signature Scheme</a></li>
+			<li><a href="https://bitcoinmagazine.com/business/ecash-makes-bitcoin-and-fiat-private-with-calle-cashu">Bitcoin Magazine — Ecash Makes Bitcoin (And Fiat) Private With Calle's Cashu</a></li>
+			<li><a href="https://github.com/nostr-protocol/nips/blob/master/60.md"><abbr title="Nostr Implementation Possibility">NIP</abbr>-60 — Cashu Wallets</a></li>
+			<li><a href="https://github.com/nostr-protocol/nips/blob/master/61.md"><abbr title="Nostr Implementation Possibility">NIP</abbr>-61 — Nutzaps</a></li>
+			<li><a href="https://fedimint.org/guardians/how-federations-work">Fedimint — How Federations Work</a></li>
+			<li><a href="https://blog.cashu.space/cashu-at-btcplusplus-2026/">Cashu at bitcoin++ Berlin 2026</a></li>
+			<li><a href="https://uncensoredtech.substack.com/p/rug-the-mints">Rug The Mints</a></li>
+			<li><a href="https://eprint.iacr.org/2026/2174">Blind Spots in Blind Signatures: A System-Level Security Analysis of Deployed Chaumian Ecash</a></li>
+			<li><a href="https://cashumints.space/">cashumints.space</a></li>
+		</ul>
+	</section>
+	<section>
+		<h1>See Also</h1>
+		<ul>
+			<li><a href="/bitcoin/">Bitcoin</a></li>
+			<li><a href="/blind-signatures/">Blind Signatures</a></li>
+			<li><a href="/ecash/">Ecash</a></li>
+			<li><a href="/fedimint/">Fedimint</a></li>
+			<li><a href="/lightning-network/">Lightning Network</a></li>
+		</ul>
+	</section>
+	<section>
+		<h1>Also See Also</h1>
+		<ul>
+			<li><a href="/cbor/">CBOR</a></li>
+			<li><a href="/http/">HTTP</a></li>
+			<li><a href="/nostr/">Nostr</a></li>
+			<li><a href="/open-social-web/">Open Social Web</a></li>
+		</ul>
+	</section>
+	<footer>
+		<include src="author.html"></include>
+		<include src="license.html"></include>
+	</footer>
+</article>
+</main>
+</body>
+</html>
